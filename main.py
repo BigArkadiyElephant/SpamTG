@@ -2,14 +2,14 @@ import asyncio
 import os
 from fastapi import FastAPI, Form, UploadFile, File, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, HTMLResponse
+from fastapi.responses import JSONResponse, HTMLResponse, FileResponse
 from telethon import TelegramClient
 from telethon.errors import FloodWaitError, UserPrivacyRestrictedError
 from datetime import datetime
 
 app = FastAPI()
 
-# Разрешаем CORS на всякий случай
+# Разрешаем CORS для нормальной работы запросов
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -36,13 +36,18 @@ def add_log(log_type, text):
     now = datetime.now().strftime("%H:%M:%S")
     task_status["logs"].append({"time": now, "type": log_type, "text": text})
 
-@app.get("/", response_class=HTMLResponse)
+# Железобетонная отдача index.html без багов с кэшированием заголовков
+@app.get("/", response_class=FileResponse)
 async def read_index():
     index_path = os.path.join(os.path.dirname(__file__), "index.html")
     if os.path.exists(index_path):
-        with open(index_path, "r", encoding="utf-8") as f:
-            return f.read()
-    return "<h1>Файл index.html не найден в корне проекта</h1>"
+        return FileResponse(index_path)
+    
+    # Резервный путь, если рабочая директория смещена
+    if os.path.exists("index.html"):
+        return FileResponse("index.html")
+        
+    return HTMLResponse("<h1>Файл index.html не найден в контейнере Render</h1>", status_code=404)
 
 @app.get("/ws")
 async def ws_status_poll():
