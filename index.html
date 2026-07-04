@@ -36,6 +36,15 @@
     .console .info { color: #fbbf24; }
     .stats { display: flex; gap: 20px; margin-bottom: 15px; }
     .stat-card { background: #f1f5f9; padding: 10px 20px; border-radius: 6px; flex: 1; text-align: center; }
+    
+    /* Стили для блока инструкции */
+    .instruction-block { margin-top: 30px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 20px; }
+    .instruction-block h3 { margin-top: 0; color: #1e293b; font-size: 16px; display: flex; align-items: center; gap: 8px; }
+    .instruction-step { margin-bottom: 15px; background: #fff; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px 15px; }
+    .instruction-step h4 { margin: 0 0 8px 0; color: #2563eb; font-size: 14px; }
+    .instruction-step ol { margin: 0; padding-left: 20px; font-size: 13px; color: #475569; line-height: 1.6; }
+    .instruction-step ol li { margin-bottom: 6px; }
+    .instruction-step ol li b { color: #0f172a; }
   </style>
 </head>
 <body>
@@ -54,6 +63,7 @@
     <button data-i="3">4. Запуск и Мониторинг</button>
   </div>
 
+  <!-- PANEL 1 -->
   <div class="panel active">
     <div class="form-group">
       <label>App ID</label>
@@ -66,8 +76,42 @@
     <div id="authRow" style="margin-top:20px; display:flex; gap:10px; align-items:center;">
       <button class="btn btn-blue" id="btnRequestCode">Запросить код подтверждения</button>
     </div>
+
+    <!-- ИНСТРУКЦИЯ ДЛЯ ПОЛЬЗОВАТЕЛЯ -->
+    <div class="instruction-block">
+      <h3>💡 Инструкция: Как быстро подключить Telegram к панели</h3>
+      <p style="font-size: 13px; color: #64748b; margin: 0 0 15px 0;">Чтобы сервис мог отправлять сообщения от имени вашего аккаунта, ему нужны официальные ключи доступа (App ID и API Hash). Telegram выдает их бесплатно абсолютно каждому пользователю.</p>
+      
+      <div class="instruction-step">
+        <h4>Шаг 1. Получение кодов App ID и API Hash</h4>
+        <ol>
+          <li>Перейдите на официальный сайт Telegram: <a href="https://my.telegram.org/" target="_blank" style="color:#2563eb; font-weight:bold;">my.telegram.org</a></li>
+          <li>В поле <b>Your Phone Number</b> введите номер вашего аккаунта (например: <code style="background:#e2e8f0; padding:2px 4px; border-radius:4px;">+79991234567</code>) и нажмите <b>Next</b>.</li>
+          <li>В приложение Telegram на телефоне придет код подтверждения. Вставьте его в поле <b>Confirmation code</b> на сайте и нажмите <b>Sign In</b>.</li>
+          <li>Нажмите на первую ссылку — <b>API development tools</b>.</li>
+          <li>Заполните два поля на английском (остальные не трогайте):<br>
+              - <b>App title:</b> любое слово, например <code>MailingCRM</code><br>
+              - <b>Short name:</b> покороче, например <code>mcrm</code>
+          </li>
+          <li>Нажмите кнопку <b>Create application</b> в самом низу страницы.</li>
+          <li>Страница обновится, сверху появятся нужные данные: <b>App api_id</b> (это ваш App ID) и <b>App api_hash</b> (это ваш API Hash).</li>
+        </ol>
+      </div>
+
+      <div class="instruction-step">
+        <h4>Шаг 2. Авторизация в этой панели</h4>
+        <ol>
+          <li>Скопируйте <b>App api_id</b> с сайта Telegram и вставьте его в поле <b>App ID</b> выше.</li>
+          <li>Скопируйте <b>App api_hash</b> и вставьте в поле <b>API Hash</b> выше.</li>
+          <li>Нажмите синюю кнопку <b>«Запросить код подтверждения»</b>.</li>
+          <li>В появившемся окне введите ваш телефон, а затем введите 5-значный код, который придет в Telegram.</li>
+          <li><i>Если у вас включен Облачный пароль (двухэтапная защита), панель попросит ввести и его.</i></li>
+        </ol>
+      </div>
+    </div>
   </div>
 
+  <!-- PANEL 2 -->
   <div class="panel">
     <div class="dropzone" id="dropzone">
       Перетащите сюда файл <b>users.txt</b> или нажмите для выбора
@@ -79,6 +123,7 @@
     <div id="preview" style="display:none; margin-top:15px; background:#f8fafc; padding:10px; border-radius:6px; max-height:100px; overflow-y:auto; font-size:13px;"></div>
   </div>
 
+  <!-- PANEL 3 -->
   <div class="panel">
     <div class="form-group">
       <label>Текст сообщения (Markdown)</label>
@@ -96,6 +141,7 @@
     </div>
   </div>
 
+  <!-- PANEL 4 -->
   <div class="panel">
     <div class="stats">
       <div class="stat-card"><div>Статус</div><div id="statStatus">Ожидание</div></div>
@@ -139,16 +185,14 @@
     if (localStorage.getItem('delayMin')) $('#delayMin').value = localStorage.getItem('delayMin');
     if (localStorage.getItem('delayMax')) $('#delayMax').value = localStorage.getItem('delayMax');
     
-    // Если в памяти остался список пользователей, отправляем его обратно на Render автоматически
     const savedUsers = localStorage.getItem('rawUsersText');
     if (savedUsers) {
       const blob = new Blob([savedUsers], { type: 'text/plain' });
       const file = new File([blob], "users.txt", { type: "text/plain" });
-      sendFileToServer(file, false); // false, чтобы не перезаписывать localStorage повторно
+      sendFileToServer(file, false);
     }
   }
 
-  // Автосохранение при вводе текста в поля
   $('#appId').addEventListener('input', () => localStorage.setItem('appId', $('#appId').value));
   $('#apiHash').addEventListener('input', () => localStorage.setItem('apiHash', $('#apiHash').value));
   $('#msgTemplate').addEventListener('input', () => localStorage.setItem('msgTemplate', $('#msgTemplate').value));
@@ -175,7 +219,7 @@
         };
       } else {
         if ($('#otpInput') || $('#pwdInput')) {
-          // Ждем ввода кода, не сбрасываем поля
+          // Ждем ввода
         } else {
           banner.className = 'status-banner off';
           txt.textContent = 'Сессия не активна';
@@ -185,9 +229,6 @@
         }
       }
 
-      // Если на сервере база пустая, но у нас в localStorage есть сохраненные пользователи,
-      // и автоматическая отправка еще не произошла, кнопка запуск заблокируется.
-      // Ниже логика управления прогрессом и кнопкой:
       const totalContacts = data.total || 0;
       $('#progressText').textContent = `${data.sent || 0} из ${totalContacts} контактов`;
       const pct = totalContacts ? Math.round((data.sent || 0) / totalContacts * 100) : 0;
@@ -289,7 +330,6 @@
     }
   }
 
-  // Загрузка базы контактов
   const dz = $('#dropzone'), fi = $('#fileInput');
   dz.addEventListener('click', () => fi.click());
   dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('over'); });
@@ -302,7 +342,7 @@
     const reader = new FileReader();
     reader.onload = function(e) {
       const text = e.target.result;
-      localStorage.setItem('rawUsersText', text); // Сохраняем текст файла локально в браузеры
+      localStorage.setItem('rawUsersText', text);
       sendFileToServer(file, true);
     };
     reader.readAsText(file);
@@ -336,7 +376,6 @@
     await fetch(`${BACKEND_URL}/api/queue/stop`, { method: 'POST' });
   });
 
-  // Запуск первичного восстановления данных при открытии страницы
   loadSavedData();
 
 })();
