@@ -73,7 +73,7 @@
       Перетащите сюда файл <b>users.txt</b> или нажмите для выбора
       <input type="file" id="fileInput" style="display:none" accept=".txt">
     </div>
-    <div id="loadedBar" style="display:none; margin-top:15px; background:#f0fdf4; padding:10px; border-radius:6px; color:#166534;">
+    <div id="loadedBar" style="display:none; margin-top:15px; align-items:center; gap:10px; background:#f0fdf4; padding:10px; border-radius:6px; color:#166534;">
       <span>✓ Успешно загружено контактов: <b id="contactCount">0</b></span>
     </div>
     <div id="preview" style="display:none; margin-top:15px; background:#f8fafc; padding:10px; border-radius:6px; max-height:100px; overflow-y:auto; font-size:13px;"></div>
@@ -131,6 +131,30 @@
   }
   tabBtns.forEach(b => b.addEventListener('click', ()=> switchTab(+b.dataset.i)));
 
+  // --- ЛОГИКА ВОССТАНОВЛЕНИЯ ДАННЫХ ИЗ LOCALSTORAGE ---
+  function loadSavedData() {
+    if (localStorage.getItem('appId')) $('#appId').value = localStorage.getItem('appId');
+    if (localStorage.getItem('apiHash')) $('#apiHash').value = localStorage.getItem('apiHash');
+    if (localStorage.getItem('msgTemplate')) $('#msgTemplate').value = localStorage.getItem('msgTemplate');
+    if (localStorage.getItem('delayMin')) $('#delayMin').value = localStorage.getItem('delayMin');
+    if (localStorage.getItem('delayMax')) $('#delayMax').value = localStorage.getItem('delayMax');
+    
+    // Если в памяти остался список пользователей, отправляем его обратно на Render автоматически
+    const savedUsers = localStorage.getItem('rawUsersText');
+    if (savedUsers) {
+      const blob = new Blob([savedUsers], { type: 'text/plain' });
+      const file = new File([blob], "users.txt", { type: "text/plain" });
+      sendFileToServer(file, false); // false, чтобы не перезаписывать localStorage повторно
+    }
+  }
+
+  // Автосохранение при вводе текста в поля
+  $('#appId').addEventListener('input', () => localStorage.setItem('appId', $('#appId').value));
+  $('#apiHash').addEventListener('input', () => localStorage.setItem('apiHash', $('#apiHash').value));
+  $('#msgTemplate').addEventListener('input', () => localStorage.setItem('msgTemplate', $('#msgTemplate').value));
+  $('#delayMin').addEventListener('input', () => localStorage.setItem('delayMin', $('#delayMin').value));
+  $('#delayMax').addEventListener('input', () => localStorage.setItem('delayMax', $('#delayMax').value));
+
   async function checkStatus() {
     try {
       const res = await fetch(`${BACKEND_URL}/ws`);
@@ -151,7 +175,7 @@
         };
       } else {
         if ($('#otpInput') || $('#pwdInput')) {
-          // Ждем действий пользователя, баннер не перебиваем
+          // Ждем ввода кода, не сбрасываем поля
         } else {
           banner.className = 'status-banner off';
           txt.textContent = 'Сессия не активна';
@@ -161,8 +185,12 @@
         }
       }
 
-      $('#progressText').textContent = `${data.sent || 0} из ${data.total || 0} контактов`;
-      const pct = data.total ? Math.round((data.sent || 0) / data.total * 100) : 0;
+      // Если на сервере база пустая, но у нас в localStorage есть сохраненные пользователи,
+      // и автоматическая отправка еще не произошла, кнопка запуск заблокируется.
+      // Ниже логика управления прогрессом и кнопкой:
+      const totalContacts = data.total || 0;
+      $('#progressText').textContent = `${data.sent || 0} из ${totalContacts} контактов`;
+      const pct = totalContacts ? Math.round((data.sent || 0) / totalContacts * 100) : 0;
       $('#progressFill').style.width = `${pct}%`;
       $('#progressPct').textContent = `${pct}%`;
       
@@ -186,8 +214,8 @@
         $('#statStatus').textContent = 'Идёт отправка';
         $('#btnStart').disabled = true; $('#btnStop').disabled = false;
       } else {
-        $('#statStatus').textContent = data.total > 0 && data.sent === data.total ? 'Завершено' : 'Ожидание';
-        $('#btnStart').disabled = (data.total === 0); $('#btnStop').disabled = true;
+        $('#statStatus').textContent = totalContacts > 0 && data.sent === totalContacts ? 'Завершено' : 'Ожидание';
+        $('#btnStart').disabled = (totalContacts === 0); $('#btnStop').disabled = true;
       }
     } catch(e) {}
   }
@@ -233,7 +261,6 @@
     currentOtp = $('#otpInput').value;
     const cfd = new FormData();
     cfd.append('otp', currentOtp);
-
     sendConfirmation(cfd);
   }
 
@@ -242,7 +269,6 @@
     const resData = await confRes.json();
 
     if (confRes.status === 202 && resData.status === "password_needed") {
-      // 2FA Облачный Пароль
       $('#sessionText').textContent = "Включена 2FA защита аккаунта. Введите Облачный Пароль:";
       $('#authRow').innerHTML = `
         <input class="inp" type="password" id="pwdInput" style="max-width:250px" placeholder="Облачный Пароль">
@@ -268,11 +294,21 @@
   dz.addEventListener('click', () => fi.click());
   dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('over'); });
   dz.addEventListener('dragleave', () => dz.classList.remove('over'));
-  dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('over'); sendFileToServer(e.dataTransfer.files[0]); });
-  fi.addEventListener('change', () => sendFileToServer(fi.files[0]));
+  dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('over'); handleFile(e.dataTransfer.files[0]); });
+  fi.addEventListener('change', () => handleFile(fi.files[0]));
 
-  async function sendFileToServer(file) {
+  function handleFile(file) {
     if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      const text = e.target.result;
+      localStorage.setItem('rawUsersText', text); // Сохраняем текст файла локально в браузеры
+      sendFileToServer(file, true);
+    };
+    reader.readAsText(file);
+  }
+
+  async function sendFileToServer(file, showNotice) {
     const fd = new FormData();
     fd.append('file', file);
     const res = await fetch(`${BACKEND_URL}/api/queue/upload`, { method: 'POST', body: fd });
@@ -283,6 +319,7 @@
       $('#preview').style.display = 'block';
       $('#preview').innerHTML = data.preview.join('<br>');
       $('#btnStart').disabled = false;
+      if (showNotice) alert(`База на ${data.count} контактов успешно загружена!`);
     }
   }
 
@@ -298,6 +335,10 @@
   $('#btnStop').addEventListener('click', async () => {
     await fetch(`${BACKEND_URL}/api/queue/stop`, { method: 'POST' });
   });
+
+  // Запуск первичного восстановления данных при открытии страницы
+  loadSavedData();
+
 })();
 </script>
 </body>
