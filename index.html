@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <title>CRM - Панель управления</title>
   <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #f4f6f8; color: #333; margin: 0; padding: 20px; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; background: #f4f6f8; color: #333; margin: 0; padding: 20px; }
     .container { max-width: 900px; margin: 0 auto; background: #fff; padding: 30px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
     h2 { margin-top: 0; color: #1e293b; border-bottom: 2px solid #e2e8f0; padding-bottom: 10px; }
     .tabs { display: flex; gap: 10px; margin-bottom: 20px; border-bottom: 1px solid #cbd5e1; padding-bottom: 10px; }
@@ -36,8 +36,6 @@
     .console .info { color: #fbbf24; }
     .stats { display: flex; gap: 20px; margin-bottom: 15px; }
     .stat-card { background: #f1f5f9; padding: 10px 20px; border-radius: 6px; flex: 1; text-align: center; }
-    .stat-card div:first-child { font-size: 12px; color: #64748b; text-transform: uppercase; }
-    .stat-card div:last-child { font-size: 20px; font-weight: bold; color: #1e293b; margin-top: 5px; }
   </style>
 </head>
 <body>
@@ -56,7 +54,6 @@
     <button data-i="3">4. Запуск и Мониторинг</button>
   </div>
 
-  <!-- PANEL 1 -->
   <div class="panel active">
     <div class="form-group">
       <label>App ID</label>
@@ -71,38 +68,34 @@
     </div>
   </div>
 
-  <!-- PANEL 2 -->
   <div class="panel">
     <div class="dropzone" id="dropzone">
       Перетащите сюда файл <b>users.txt</b> или нажмите для выбора
       <input type="file" id="fileInput" style="display:none" accept=".txt">
     </div>
-    <div id="loadedBar" style="display:none; margin-top:15px; align-items:center; gap:10px; background:#f0fdf4; padding:10px; border-radius:6px; color:#166534;">
+    <div id="loadedBar" style="display:none; margin-top:15px; background:#f0fdf4; padding:10px; border-radius:6px; color:#166534;">
       <span>✓ Успешно загружено контактов: <b id="contactCount">0</b></span>
     </div>
-    <div id="preview" style="display:none; margin-top:15px; background:#f8fafc; padding:10px; border-radius:6px; max-height:100px; overflow-y:auto; font-size:13px; border:1px solid #e2e8f0; color:#475569;"></div>
+    <div id="preview" style="display:none; margin-top:15px; background:#f8fafc; padding:10px; border-radius:6px; max-height:100px; overflow-y:auto; font-size:13px;"></div>
   </div>
 
-  <!-- PANEL 3 -->
   <div class="panel">
     <div class="form-group">
-      <label>Текст сообщения (Поддерживает Markdown)</label>
+      <label>Текст сообщения (Markdown)</label>
       <textarea class="inp" id="msgTemplate" rows="6" placeholder="Привет, это тестовое сообщение..."></textarea>
     </div>
     <div style="display:flex; gap:15px; margin-top:15px;">
       <div style="flex:1">
-        <label style="font-size:14px; font-weight:500;">Мин. задержка (сек)</label>
+        <label>Мин. задержка (сек)</label>
         <input type="number" class="inp" id="delayMin" value="15">
       </div>
       <div style="flex:1">
-        <label style="font-size:14px; font-weight:500;">Макс. задержка (сек)</label>
+        <label>Макс. задержка (сек)</label>
         <input type="number" class="inp" id="delayMax" value="30">
       </div>
     </div>
-    <div id="delayInfo" style="margin-top:10px; font-size:13px; color:#64748b;">Интервал: <b>15–30 сек</b></div>
   </div>
 
-  <!-- PANEL 4 -->
   <div class="panel">
     <div class="stats">
       <div class="stat-card"><div>Статус</div><div id="statStatus">Ожидание</div></div>
@@ -120,9 +113,7 @@
       <button class="btn btn-red" id="btnStop" disabled>Остановить</button>
     </div>
 
-    <div class="console" id="logConsole">
-      <span style="color:#546e7a">Лог пуст — запустите отправку...</span>
-    </div>
+    <div class="console" id="logConsole"></div>
   </div>
 </div>
 
@@ -130,6 +121,7 @@
 (function(){
   const $ = s => document.querySelector(s);
   const BACKEND_URL = window.location.origin; 
+  let currentOtp = "";
 
   const tabBtns = document.querySelectorAll('#tabs button');
   const panels  = document.querySelectorAll('.panel');
@@ -152,30 +144,25 @@
       if (data.connected) {
         banner.className = 'status-banner on';
         txt.textContent = 'Сессия активна — подключение установлено';
-        $('#appId').disabled = true; 
-        $('#apiHash').disabled = true;
+        $('#appId').disabled = true; $('#apiHash').disabled = true;
         authRow.innerHTML = '<button class="btn btn-red" id="btnDisconnect">Отключить сессию</button>';
         $('#btnDisconnect').onclick = async () => {
           if(confirm("Вы уверены?")) await fetch(`${BACKEND_URL}/api/auth/disconnect`, { method: 'POST' });
         };
       } else {
-        banner.className = 'status-banner off';
-        if ($('#otpInput')) {
-          txt.textContent = 'Ожидание ввода кода подтверждения';
+        if ($('#otpInput') || $('#pwdInput')) {
+          // Ждем действий пользователя, баннер не перебиваем
         } else {
+          banner.className = 'status-banner off';
           txt.textContent = 'Сессия не активна';
-          $('#appId').disabled = false; 
-          $('#apiHash').disabled = false;
+          $('#appId').disabled = false; $('#apiHash').disabled = false;
           authRow.innerHTML = '<button class="btn btn-blue" id="btnRequestCode">Запросить код подтверждения</button>';
           $('#btnRequestCode').onclick = requestTelegramCode;
         }
       }
 
-      const total = data.total || 0;
-      const sent = data.sent || 0;
-      const pct = total ? Math.round(sent / total * 100) : 0;
-      
-      $('#progressText').textContent = `${sent} из ${total} контактов`;
+      $('#progressText').textContent = `${data.sent || 0} из ${data.total || 0} контактов`;
+      const pct = data.total ? Math.round((data.sent || 0) / data.total * 100) : 0;
       $('#progressFill').style.width = `${pct}%`;
       $('#progressPct').textContent = `${pct}%`;
       
@@ -183,34 +170,26 @@
       const logConsole = $('#logConsole');
       logConsole.innerHTML = '';
       
-      if (data.logs.length === 0) {
-        logConsole.innerHTML = '<span style="color:#546e7a">Лог пуст — запустите отправку...</span>';
-      } else {
-        data.logs.forEach(log => {
-          if (log.type === 'ok') oks++;
-          if (log.type === 'err') errs++;
-          const line = document.createElement('div');
-          const cls = log.type === 'ok' ? 'ok' : log.type === 'err' ? 'err' : 'info';
-          const label = log.type === 'ok' ? 'Успешно' : log.type === 'err' ? 'Ошибка' : 'Инфо';
-          line.innerHTML = `<span class="t">[${log.time}]</span> <span class="${cls}">[${label}]</span> <span class="msg">${log.text}</span>`;
-          logConsole.appendChild(line);
-        });
-        logConsole.scrollTop = logConsole.scrollHeight;
-      }
+      data.logs.forEach(log => {
+        if (log.type === 'ok') oks++;
+        if (log.type === 'err') errs++;
+        const line = document.createElement('div');
+        line.innerHTML = `<span class="t">[${log.time}]</span> <span class="${log.type}">[${log.type.toUpperCase()}]</span> <span>${log.text}</span>`;
+        logConsole.appendChild(line);
+      });
+      if(data.logs.length > 0) logConsole.scrollTop = logConsole.scrollHeight;
 
       $('#statOk').textContent = oks;
       $('#statErr').textContent = errs;
       
       if (data.running) {
         $('#statStatus').textContent = 'Идёт отправка';
-        $('#btnStart').disabled = true;
-        $('#btnStop').disabled = false;
+        $('#btnStart').disabled = true; $('#btnStop').disabled = false;
       } else {
-        $('#statStatus').textContent = total > 0 && sent === total ? 'Завершено' : 'Ожидание';
-        $('#btnStart').disabled = total === 0;
-        $('#btnStop').disabled = true;
+        $('#statStatus').textContent = data.total > 0 && data.sent === data.total ? 'Завершено' : 'Ожидание';
+        $('#btnStart').disabled = (data.total === 0); $('#btnStop').disabled = true;
       }
-    } catch(e) { console.error("Ошибка опроса бэкенда", e); }
+    } catch(e) {}
   }
 
   setInterval(checkStatus, 1500);
@@ -219,7 +198,7 @@
     const appId = $('#appId').value;
     const apiHash = $('#apiHash').value;
     const phone = prompt("Введите ваш телефон (+7...):");
-    if (!appId || !apiHash || !phone) return alert("Заполните поля!");
+    if (!appId || !apiHash || !phone) return alert("Заполните все поля!");
     
     $('#btnRequestCode').textContent = 'Отправка...';
     $('#btnRequestCode').disabled = true;
@@ -230,33 +209,61 @@
     fd.append('phone', phone);
 
     const res = await fetch(`${BACKEND_URL}/api/auth/request-code`, { method: 'POST', body: fd });
+    const data = await res.json();
+    
     if (res.ok) {
-      $('#sessionText').textContent = 'Ожидание ввода кода';
-      $('#authRow').innerHTML = `
-        <input class="inp" id="otpInput" style="max-width:160px" placeholder="Код">
-        <button class="btn btn-green" id="btnConfirm">Подтвердить</button>
-      `;
-      $('#btnConfirm').onclick = async () => {
-        const otp = $('#otpInput').value;
-        const cfd = new FormData();
-        cfd.append('otp', otp);
-        const confRes = await fetch(`${BACKEND_URL}/api/auth/confirm-code`, { method: 'POST', body: cfd });
-        if(!confRes.ok) alert("Неверный код");
-      };
+      $('#sessionBanner').className = 'status-banner off';
+      $('#sessionText').textContent = 'Код отправлен. Введите его ниже:';
+      showOtpForm();
     } else {
-      alert("Ошибка. Проверьте логи на Render.");
+      alert("Ошибка бэкенда: " + (data.error || "Неизвестная ошибка"));
       checkStatus();
     }
   }
 
-  function updateDelay(){
-    const mn = Math.max(1, +$('#delayMin').value || 1);
-    let mx = Math.max(mn, +$('#delayMax').value || mn);
-    $('#delayInfo').innerHTML = `Интервал: <b>${mn}–${mx} сек</b>`;
+  function showOtpForm() {
+    $('#authRow').innerHTML = `
+      <input class="inp" id="otpInput" style="max-width:160px" placeholder="Код из СМС">
+      <button class="btn btn-green" id="btnConfirm">Подтвердить</button>
+    `;
+    $('#btnConfirm').onclick = submitOtp;
   }
-  $('#delayMin').addEventListener('input', updateDelay);
-  $('#delayMax').addEventListener('input', updateDelay);
 
+  async function submitOtp() {
+    currentOtp = $('#otpInput').value;
+    const cfd = new FormData();
+    cfd.append('otp', currentOtp);
+
+    sendConfirmation(cfd);
+  }
+
+  async function sendConfirmation(formData) {
+    const confRes = await fetch(`${BACKEND_URL}/api/auth/confirm-code`, { method: 'POST', body: formData });
+    const resData = await confRes.json();
+
+    if (confRes.status === 202 && resData.status === "password_needed") {
+      // 2FA Облачный Пароль
+      $('#sessionText').textContent = "Включена 2FA защита аккаунта. Введите Облачный Пароль:";
+      $('#authRow').innerHTML = `
+        <input class="inp" type="password" id="pwdInput" style="max-width:250px" placeholder="Облачный Пароль">
+        <button class="btn btn-green" id="btnSubmitPwd">Войти c паролем</button>
+      `;
+      $('#btnSubmitPwd').onclick = () => {
+        const pfd = new FormData();
+        pfd.append('otp', currentOtp);
+        pfd.append('password', $('#pwdInput').value);
+        sendConfirmation(pfd);
+      };
+    } else if (!confRes.ok) {
+      alert("Ошибка авторизации: " + (resData.error || "Неверный код"));
+      showOtpForm();
+    } else {
+      alert("Успешно подключено!");
+      location.reload();
+    }
+  }
+
+  // Загрузка базы контактов
   const dz = $('#dropzone'), fi = $('#fileInput');
   dz.addEventListener('click', () => fi.click());
   dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('over'); });
